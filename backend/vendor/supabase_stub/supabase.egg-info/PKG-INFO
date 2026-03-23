@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: supabase
+Version: 0.0.0.post1
+Summary: Local stub for supabase to keep installs lightweight in this environment.
+Dynamic: summary
