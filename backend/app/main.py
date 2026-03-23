@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import analytics, auth, attempts, candidates, execute, questions, rooms
+from app.api.routes import websocket as websocket_routes
 from app.core.config import settings
 
 
@@ -24,6 +25,7 @@ app.include_router(questions.router)
 app.include_router(execute.router)
 app.include_router(attempts.router)
 app.include_router(analytics.router)
+app.include_router(websocket_routes.router)
 
 
 @app.get("/health")
