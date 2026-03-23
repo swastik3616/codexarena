@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     MINIO_ACCESS_KEY: str = Field(default="minioadmin")
     MINIO_SECRET_KEY: str = Field(default="minioadmin")
 
+    # Gemini
+    GEMINI_API_KEY: str | None = Field(default=None)
+
     @property
     def cors_allow_origins_list(self) -> List[str]:
         raw = (self.CORS_ALLOW_ORIGINS or "*").strip()
