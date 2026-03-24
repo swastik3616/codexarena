@@ -9,6 +9,8 @@ import { useExecution } from '../hooks/useExecution'
 import { getCandidateSession, type InterviewQuestion, setCandidateSession } from '../lib/candidateSession'
 import { QuestionPanel } from '../components/candidate/QuestionPanel'
 import { AntiCheatMonitor } from '../services/antiCheat'
+import { FaceDetectionMonitor, type CameraState } from '../services/faceDetection'
+import { CameraStatus } from '../components/candidate/CameraStatus'
 
 export function CandidateInterview() {
   const { room_id } = useParams<{ room_id: string }>()
@@ -16,6 +18,8 @@ export function CandidateInterview() {
   const [question, setQuestion] = useState<InterviewQuestion | null>(session?.question ?? null)
   const attemptId = session?.attemptId ?? ''
   const [editorRef, setEditorRef] = useState<MonacoEditorNS.IStandaloneCodeEditor | null>(null)
+  const [cameraState, setCameraState] = useState<CameraState>('idle')
+  const [cameraMessage, setCameraMessage] = useState<string | undefined>(undefined)
 
   const { run, loading, result, error, cooldownSeconds } = useExecution({
     candidateToken: session?.candidateToken,
@@ -31,8 +35,14 @@ export function CandidateInterview() {
     if (!wsUrl || !session?.candidateId) return
     const ws = new WebSocket(wsUrl)
     const antiCheat = new AntiCheatMonitor()
+    let faceMonitor: FaceDetectionMonitor | null = null
     ws.onopen = () => {
       antiCheat.startAll(ws, session.candidateId, editorRef)
+      faceMonitor = new FaceDetectionMonitor(ws, (state, message) => {
+        setCameraState(state)
+        setCameraMessage(message)
+      })
+      void faceMonitor.init()
     }
     ws.onmessage = (event) => {
       try {
@@ -47,6 +57,7 @@ export function CandidateInterview() {
     }
     return () => {
       antiCheat.stopAll()
+      faceMonitor?.stop()
       ws.close()
     }
   }, [wsUrl, session, editorRef])
@@ -64,6 +75,7 @@ export function CandidateInterview() {
           <div className="flex items-center justify-between">
             <h1 className="text-lg font-semibold">Candidate Interview</h1>
             <div className="flex items-center gap-2">
+            <CameraStatus state={cameraState} message={cameraMessage} />
               <LanguageSelector />
               <RunButton
                 loading={loading}
