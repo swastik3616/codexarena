@@ -19,5 +19,7 @@ class CandidateRoomSnapshot(BaseModel):
 class CandidateJoinResponse(BaseModel):
     candidate_id: str
     candidate_token: str
+    attempt_id: str | None = None
+    question: dict | None = None
     room: CandidateRoomSnapshot
 

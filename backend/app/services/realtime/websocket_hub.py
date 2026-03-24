@@ -75,6 +75,19 @@ async def _send_json_safe(ws: WebSocket, data: Any) -> None:
         pass
 
 
+async def broadcast_room_event(room_id: str, payload: dict[str, Any], target_role: str = "all") -> None:
+    room = active_connections.get(room_id)
+    if not room:
+        return
+    sockets: list[WebSocket] = []
+    if target_role in ("all", "candidate"):
+        sockets.extend(list(room.get("candidates", {}).values()))
+    if target_role in ("all", "recruiter"):
+        sockets.extend(list(room.get("recruiters", {}).values()))
+    for ws in sockets:
+        await _send_json_safe(ws, payload)
+
+
 async def _ensure_room_pubsub(room_id: str) -> None:
     """
     Ensure a single Redis pub/sub subscriber task per room.

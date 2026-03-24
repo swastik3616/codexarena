@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import analytics, auth, attempts, candidates, execute, questions, rooms
 from app.api.routes import websocket as websocket_routes
 from app.core.config import settings
+from app.services.execution.pool import start_all_pools
 
 
 app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION)
@@ -36,4 +37,14 @@ def health() -> dict[str, str]:
 @app.get("/")
 def read_root() -> dict[str, str]:
     return {"message": "CodexArena Backend Running"}
+
+
+@app.on_event("startup")
+async def startup_event() -> None:
+    # Pre-warm all execution pools (best-effort).
+    try:
+        await start_all_pools()
+    except Exception:
+        # Keep API startup resilient even if Docker/image pull isn't available.
+        pass
 

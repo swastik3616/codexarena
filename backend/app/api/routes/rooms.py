@@ -10,7 +10,7 @@ from typing import Any
 import redis
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_candidate_or_recruiter, get_current_user
 from app.core.config import settings
 from app.db.database import get_supabase_client
 from app.schemas.room import RoomCreateRequest, RoomCreateResponse, RoomDetailResponse, RoomListResponse
@@ -108,9 +108,8 @@ def list_rooms(
 @router.get("/{room_id}", response_model=RoomDetailResponse)
 def get_room_detail(
     room_id: str,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_candidate_or_recruiter),
 ) -> RoomDetailResponse:
-    recruiter_id = current_user["id"]
     rooms = _get_rooms_table()
     candidates = _get_candidates_table()
 
@@ -119,8 +118,14 @@ def get_room_detail(
     if not room:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
 
-    if str(room.get("recruiter_id")) != recruiter_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    if current_user.get("role") == "candidate":
+        candidate_row = candidates.select("*").eq("id", current_user["id"]).single().execute().data
+        if not candidate_row or str(candidate_row.get("room_id")) != room_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    else:
+        recruiter_id = current_user["id"]
+        if str(room.get("recruiter_id")) != recruiter_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     cand_res = candidates.select("*").eq("room_id", room_id).execute()
     cand_rows = cand_res.data or []
@@ -162,5 +167,5 @@ def archive_room(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     now = datetime.now(timezone.utc)
-    rooms.update({"status": "archived", "ended_at": now}).eq("id", room_id).execute()
-    return {"message": "Room archived"}
+    rooms.update({"status": "completed", "ended_at": now}).eq("id", room_id).execute()
+    return {"message": "Room completed"}

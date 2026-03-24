@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import docker
 
@@ -10,23 +9,29 @@ import docker
 LANGUAGE_IMAGES: Dict[str, str] = {
     "python": "python:3.11-slim",
     "javascript": "node:20-slim",
+    "typescript": "node:20-slim",
     "java": "openjdk:17-slim",
     "cpp": "gcc:12",
+    "c": "gcc:12",
     "go": "golang:1.21",
+    "rust": "rust:1.75-slim",
+    "ruby": "ruby:3.2-slim",
+    "php": "php:8.3-cli",
+    "swift": "swift:5.9",
+    "kotlin": "openjdk:17-slim",
+    "scala": "openjdk:17-slim",
+    "bash": "bash:5.2",
+    "r": "r-base:4.3.2",
+    "dart": "dart:stable",
+    "perl": "perl:5.38",
+    "haskell": "haskell:9.6.3",
 }
-
-
-@dataclass
-class _PooledContainer:
-    container: Any
-    in_use: bool = False
-
 
 class ContainerPool:
     def __init__(self, language: str, pool_size: int = 3):
         self.language = language
         self.pool_size = pool_size
-        self._client = docker.from_env()
+        self._client = None
         self._idle_queue: asyncio.Queue[Any] = asyncio.Queue()
         self._started = False
         self._lock = asyncio.Lock()
@@ -105,6 +110,8 @@ class ContainerPool:
         command = ["sh", "-c", "while true; do sleep 3600; done"]
 
         def _create() -> Any:
+            if self._client is None:
+                self._client = docker.from_env()
             return self._client.containers.run(
                 image=image,
                 command=command,
@@ -134,4 +141,42 @@ class ContainerPool:
         await asyncio.to_thread(_chown_tmp)
 
         return container
+
+
+LANGUAGE_POOLS: dict[str, ContainerPool] = {
+    "python": ContainerPool("python", 3),
+    "javascript": ContainerPool("javascript", 3),
+    "typescript": ContainerPool("typescript", 2),
+    "java": ContainerPool("java", 2),
+    "cpp": ContainerPool("cpp", 2),
+    "c": ContainerPool("c", 2),
+    "go": ContainerPool("go", 2),
+    "rust": ContainerPool("rust", 2),
+    "ruby": ContainerPool("ruby", 2),
+    "php": ContainerPool("php", 2),
+    "swift": ContainerPool("swift", 2),
+    "kotlin": ContainerPool("kotlin", 2),
+    "scala": ContainerPool("scala", 2),
+    "bash": ContainerPool("bash", 2),
+    "r": ContainerPool("r", 2),
+    "dart": ContainerPool("dart", 2),
+    "perl": ContainerPool("perl", 2),
+    "haskell": ContainerPool("haskell", 2),
+}
+
+
+async def start_all_pools() -> None:
+    """
+    Start all configured language pools at service startup.
+
+    In environments where Docker or specific language images are unavailable,
+    failures are swallowed to keep API startup resilient.
+    """
+
+    tasks: list[asyncio.Task[Any]] = []
+    for pool in LANGUAGE_POOLS.values():
+        tasks.append(asyncio.create_task(pool.start()))
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    _ = results
+
 

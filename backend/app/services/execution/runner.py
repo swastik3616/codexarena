@@ -8,11 +8,7 @@ from typing import Any, Dict, List
 
 from app.db.database import get_supabase_client
 
-from .pool import ContainerPool, LANGUAGE_IMAGES
-
-
-_POOLS: dict[str, ContainerPool] = {}
-_POOLS_LOCK = asyncio.Lock()
+from .pool import LANGUAGE_IMAGES, LANGUAGE_POOLS
 
 
 def _python_file_ext() -> str:
@@ -29,6 +25,16 @@ def _language_to_ext(language: str) -> str:
     }[language]
 
 
+def _solution_filename(language: str) -> str:
+    return {
+        "python": "solution.py",
+        "javascript": "solution.js",
+        "java": "Solution.java",
+        "cpp": "solution.cpp",
+        "go": "solution.go",
+    }[language]
+
+
 def _language_to_runner_name(language: str) -> str:
     return {
         "python": "python_runner.sh",
@@ -39,15 +45,12 @@ def _language_to_runner_name(language: str) -> str:
     }[language]
 
 
-async def _get_pool(language: str) -> ContainerPool:
-    async with _POOLS_LOCK:
-        if language in _POOLS:
-            return _POOLS[language]
-
-        pool = ContainerPool(language=language, pool_size=1)
-        _POOLS[language] = pool
-        await pool.start()
-        return pool
+async def _get_pool(language: str):
+    pool = LANGUAGE_POOLS.get(language)
+    if pool is None:
+        raise ValueError(f"Unsupported language: {language}")
+    await pool.start()
+    return pool
 
 
 def _write_file_tar_bytes(path_in_container: str, content: bytes) -> bytes:
@@ -82,11 +85,9 @@ async def execute_code(code: str, language: str, test_cases: list[dict]) -> dict
     container = await pool.get_idle()
 
     attempt_id = str(uuid.uuid4())
-    ext = _language_to_ext(language)
-
     # Prepare files in /tmp/submission
-    solution_path = f"/tmp/submission/solution.{ext}"
-    test_cases_path = "/tmp/submission/test_cases.json"
+    solution_path = f"/tmp/submission/{_solution_filename(language)}"
+    test_cases_path = "/tmp/test_cases.json"
     runner_path = "/tmp/runner.sh"
 
     start = time.monotonic()
@@ -141,7 +142,7 @@ async def execute_code(code: str, language: str, test_cases: list[dict]) -> dict
                 {
                     "test_id": i,
                     "passed": False,
-                    "expected": tc.get("expected"),
+                    "expected": tc.get("expected_output", tc.get("expected")),
                     "actual": (stdout_text + stderr_text).strip(),
                     "time_ms": 0,
                 }
@@ -165,7 +166,7 @@ async def execute_code(code: str, language: str, test_cases: list[dict]) -> dict
                     {
                         "test_id": test_id,
                         "passed": passed,
-                        "expected": r.get("expected", tc.get("expected")),
+                        "expected": r.get("expected", tc.get("expected_output", tc.get("expected"))),
                         "actual": r.get("actual", ""),
                         "time_ms": r.get("time_ms", 0),
                     }
