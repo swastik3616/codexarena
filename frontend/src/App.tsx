@@ -7,6 +7,7 @@ import { JoinRoom } from './pages/JoinRoom'
 import { WaitingRoom } from './pages/WaitingRoom'
 import { CandidateInterview } from './pages/CandidateInterview'
 import { EvaluationReport } from './pages/EvaluationReport'
+import { RoomAnalytics } from './pages/RoomAnalytics'
 
 function ProtectedRecruiterRoute({ children }: { children: ReactElement }) {
   const token = localStorage.getItem('recruiterToken')
@@ -32,6 +33,14 @@ export default function App() {
         element={
           <ProtectedRecruiterRoute>
             <EvaluationReport />
+          </ProtectedRecruiterRoute>
+        }
+      />
+      <Route
+        path="/analytics/:room_id"
+        element={
+          <ProtectedRecruiterRoute>
+            <RoomAnalytics />
           </ProtectedRecruiterRoute>
         }
       />
