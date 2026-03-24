@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, Callable, Coroutine, Optional
@@ -11,7 +12,11 @@ import redis
 from arq.worker import RedisSettings
 
 from app.core.config import settings
+from app.core.logging import get_logger
+from app.core.metrics import execution_duration_seconds, execution_jobs_total
 from app.db.database import get_supabase_client
+logger = get_logger(service="execution_worker")
+
 from app.services.ai.code_evaluator import CodeEvaluator
 from app.services.execution import runner
 
@@ -40,8 +45,12 @@ async def execute_submission(ctx: Any, job_payload: dict[str, Any]) -> None:
     if job_id:
         redis_client = get_redis_client()
         redis_client.set(f"exec_job:{job_id}:status", "running")
+    logger.info("job_started", attempt_id=attempt_id, language=language, job_id=job_id or "-")
+    start = time.perf_counter()
 
     result = await runner.execute_code(code=code, language=language, test_cases=test_cases)
+    elapsed = max(0.0, time.perf_counter() - start)
+    execution_duration_seconds.labels(language).observe(elapsed)
 
     # Write to execution_results table.
     client = get_supabase_client()
@@ -87,6 +96,14 @@ async def execute_submission(ctx: Any, job_payload: dict[str, Any]) -> None:
             redis_client.set(f"exec_job:{job_id}:status", "complete")
         except Exception:
             pass
+    execution_jobs_total.labels("completed").inc()
+    logger.info(
+        "job_completed",
+        attempt_id=attempt_id,
+        language=language,
+        wall_time_ms=int(result.get("wall_time_ms", 0) or 0),
+        pass_count=int(result.get("pass_count", 0) or 0),
+    )
 
     # Chain AI evaluation after execution result is available.
     try:
@@ -113,6 +130,7 @@ async def execute_submission(ctx: Any, job_payload: dict[str, Any]) -> None:
             )
     except Exception:
         # Execution completion should not fail due to evaluator issues.
+        logger.exception("execution_postprocess_failed", attempt_id=attempt_id)
         pass
 
 
@@ -126,4 +144,8 @@ class WorkerSettings:
 
     redis_settings: RedisSettings = RedisSettings(host="localhost", port=6379, database=0)
     functions = [execute_submission]
+
+
+class ExecutionWorkerSettings(WorkerSettings):
+    pass
 

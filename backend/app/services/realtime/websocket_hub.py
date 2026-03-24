@@ -11,6 +11,10 @@ from typing import Any, DefaultDict, Dict
 from fastapi import WebSocket, WebSocketDisconnect
 
 from app.core.config import settings
+from app.core.logging import get_logger
+from app.core.metrics import cheat_events_total, websocket_connections_active
+logger = get_logger(service="websocket")
+
 from app.core.security import verify_token
 from app.db.database import get_supabase_client
 
@@ -347,6 +351,8 @@ async def _handle_cheat_event(room_id: str, candidate_id: str, data: dict[str, A
         "payload": payload,
     }
     redis_client.publish(f"room:{room_id}:cheats", json.dumps(payload_to_publish))
+    sev = str(severity).lower()
+    cheat_events_total.labels(sev, str(event_type)).inc()
 
     if hasattr(redis_client, "_pubsub_queues"):
         room_state = active_connections.get(room_id)
@@ -388,8 +394,11 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str) -> None:
 
     if role == "candidate":
         room["candidates"][entity_id] = websocket
+        websocket_connections_active.labels("candidate").inc()
     else:
         room["recruiters"][entity_id] = websocket
+        websocket_connections_active.labels("recruiter").inc()
+    logger.info("connection_opened", room_id=room_id, role=role, candidate_id=entity_id if role == "candidate" else "-")
 
     await _ensure_room_pubsub(room_id)
 
@@ -435,7 +444,10 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str) -> None:
         if room:
             if role == "candidate":
                 room["candidates"].pop(entity_id, None)
+                websocket_connections_active.labels("candidate").dec()
             else:
                 room["recruiters"].pop(entity_id, None)
+                websocket_connections_active.labels("recruiter").dec()
+        logger.info("connection_closed", room_id=room_id, role=role, candidate_id=entity_id if role == "candidate" else "-")
         await _maybe_cancel_room_pubsub(room_id)
 

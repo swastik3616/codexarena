@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_current_candidate, get_current_candidate_or_recruiter
 from app.core.config import settings
+from app.core.logging import get_logger
+from app.core.metrics import execution_jobs_total
 from app.db.database import get_supabase_client
 from app.schemas.execution import (
     ExecuteQueuedResponse,
@@ -20,6 +22,7 @@ from app.schemas.execution import (
 from app.workers.execution_worker import execute_submission
 
 router = APIRouter(prefix="/execute", tags=["execute"])
+logger = get_logger(service="api")
 
 
 def get_redis_client() -> Any:
@@ -94,6 +97,8 @@ async def execute(
     # Store payload so GET can run/retrieve status.
     payload_key = f"exec_job:{job_id}:payload"
     redis_client.set(payload_key, json.dumps(job_payload))
+    logger.info("job_enqueued", attempt_id=payload.attempt_id, language=payload.language, job_id=job_id)
+    execution_jobs_total.labels("enqueued").inc()
 
     return ExecuteQueuedResponse(job_id=job_id, status="queued", message="Execution queued")
 

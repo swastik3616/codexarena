@@ -6,15 +6,18 @@ from uuid import uuid4
 
 import redis
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Request
 
 from app.api.dependencies import get_current_user
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.core.security import create_access_token, create_refresh_token, hash_password, verify_password, verify_token
 from app.db.database import get_supabase_client
 from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = get_logger(service="api")
 
 REFRESH_REVOKE_TTL_SECONDS = 7 * 24 * 60 * 60
 
@@ -60,6 +63,7 @@ def register(payload: RegisterRequest) -> dict[str, Any]:
 
     access_token = create_access_token({"sub": recruiter_id, "email": payload.email, "jti": jti_access})
     refresh_token = create_refresh_token({"sub": recruiter_id, "email": payload.email, "jti": jti_refresh})
+    logger.info("login_success", user_id=recruiter_id, ip=request.client.host if request.client else "unknown")
 
     return {
         "access_token": access_token,
@@ -70,15 +74,17 @@ def register(payload: RegisterRequest) -> dict[str, Any]:
 
 
 @router.post("/login")
-def login(payload: LoginRequest) -> dict[str, Any]:
+def login(payload: LoginRequest, request: Request) -> dict[str, Any]:
     recruiters = _get_recruiters_table()
 
     res = recruiters.select("*").eq("email", payload.email).single().execute()
     row = res.data
     if not row:
+        logger.warning("login_failed", email=payload.email, ip=request.client.host if request.client else "unknown")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     if not verify_password(payload.password, row.get("password_hash")):
+        logger.warning("login_failed", email=payload.email, ip=request.client.host if request.client else "unknown")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     now = datetime.now(timezone.utc)

@@ -1,35 +1,127 @@
 services:
-  backend:
+  api:
     build:
       context: ../../backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
     env_file:
       - ../../backend/.env.example
+    environment:
+      SERVICE_MODE: api
+      REDIS_URL: redis://redis:6379/0
+      SUPABASE_URL: http://postgres:5432
     depends_on:
-      - redis
-      - supabase-local
-      - minio
-  redis:
-    image: redis:7
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
     ports:
-      - "6379:6379"
-  supabase-local:
-    image: supabase/postgres:15
+      - "8000:8000"
+
+  websocket_hub:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --workers 2
+    env_file:
+      - ../../backend/.env.example
+    environment:
+      SERVICE_MODE: websocket
+      REDIS_URL: redis://redis:6379/0
+      SUPABASE_URL: http://postgres:5432
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+
+  execution_worker:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    command: python -m arq app.workers.execution_worker.ExecutionWorkerSettings
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - ../../backend/.env.example
+    environment:
+      SERVICE_MODE: execution_worker
+      REDIS_URL: redis://redis:6379/0
+      SUPABASE_URL: http://postgres:5432
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+  ai_worker:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    command: python -m arq app.workers.ai_worker.AIWorkerSettings
+    env_file:
+      - ../../backend/.env.example
+    environment:
+      SERVICE_MODE: ai_worker
+      REDIS_URL: redis://redis:6379/0
+      SUPABASE_URL: http://postgres:5432
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    command: nginx -g 'daemon off;'
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:15-alpine
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  redis_data:
+  postgres_data:
 

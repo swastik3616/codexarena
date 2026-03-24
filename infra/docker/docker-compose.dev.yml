@@ -1,41 +1,103 @@
 services:
-  backend:
+  api:
     build:
       context: ../../backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    volumes:
-      - ../../backend/app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
       - ../../backend/.env.example
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      SERVICE_MODE: api
+      REDIS_URL: redis://redis:6379/0
+      SUPABASE_URL: http://postgres:5432
+    volumes:
+      - ../../backend:/app
     depends_on:
       - redis
-      - supabase-local
-      - minio
+      - postgres
+    ports:
+      - "8000:8000"
+
+  websocket_hub:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+    env_file:
+      - ../../backend/.env.example
+    environment:
+      SERVICE_MODE: websocket
+      REDIS_URL: redis://redis:6379/0
+      SUPABASE_URL: http://postgres:5432
+    volumes:
+      - ../../backend:/app
+    depends_on:
+      - redis
+      - postgres
+    ports:
+      - "8001:8001"
+
+  execution_worker:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    command: python -m arq app.workers.execution_worker.ExecutionWorkerSettings
+    env_file:
+      - ../../backend/.env.example
+    environment:
+      SERVICE_MODE: execution_worker
+      REDIS_URL: redis://redis:6379/0
+      SUPABASE_URL: http://postgres:5432
+    volumes:
+      - ../../backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - redis
+      - postgres
+
+  ai_worker:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    command: python -m arq app.workers.ai_worker.AIWorkerSettings
+    env_file:
+      - ../../backend/.env.example
+    environment:
+      SERVICE_MODE: ai_worker
+      REDIS_URL: redis://redis:6379/0
+      SUPABASE_URL: http://postgres:5432
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    volumes:
+      - ../../backend:/app
+    depends_on:
+      - redis
+      - postgres
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
 
   redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
 
-  supabase-local:
-    image: supabase/postgres:15
+  postgres:
+    image: postgres:15-alpine
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+volumes:
+  redis_data:
+  postgres_data:
 

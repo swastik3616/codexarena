@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,8 @@ import redis
 from pydantic import BaseModel, Field, conint
 
 from app.core.config import settings
+from app.core.logging import get_logger
+from app.core.metrics import ai_duration_seconds, ai_evaluations_total
 from app.db.database import get_supabase_client
 from app.services.realtime.websocket_hub import broadcast_room_event
 
@@ -42,6 +45,8 @@ class CodeEvaluator:
         execution_result: dict[str, Any],
         question: dict[str, Any],
     ) -> dict[str, Any]:
+        logger = get_logger(service="ai_worker")
+        t0 = time.perf_counter()
         pass_count = int(execution_result.get("pass_count", 0))
         total = max(1, int(execution_result.get("total", 0)))
         correctness_score = round((pass_count / total) * 40)
@@ -102,6 +107,9 @@ class CodeEvaluator:
             pass
         if room_id:
             await broadcast_room_event(room_id=room_id, payload=payload, target_role="recruiter")
+        ai_duration_seconds.labels("code_evaluation").observe(max(0.0, time.perf_counter() - t0))
+        ai_evaluations_total.labels("completed").inc()
+        logger.info("ai_evaluation_completed", attempt_id=attempt_id, total_score=int(stored["total_score"]))
         return stored
 
     async def _call_and_validate(

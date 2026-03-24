@@ -25,6 +25,12 @@ class Settings(BaseSettings):
 
     VERSION: str = Field(default="1.0.0", description="Public API/server version")
     PROJECT_NAME: str = Field(default="CodexArena", description="Application name")
+    SERVICE_MODE: str = Field(
+        default="api",
+        description="Service mode: api | websocket | execution_worker | ai_worker",
+    )
+    ENVIRONMENT: str = Field(default="development")
+    SENTRY_DSN: str | None = Field(default=None)
 
     # CORS
     CORS_ALLOW_ORIGINS: str = Field(

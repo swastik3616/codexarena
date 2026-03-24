@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -8,7 +9,11 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.db.database import get_supabase_client
+from app.core.metrics import ai_duration_seconds
+logger = get_logger(service="ai_worker")
+
 from app.schemas.question import QuestionGenPayload
 from app.services.execution import runner
 
@@ -25,6 +30,8 @@ class QuestionGenerator:
         Generate and validate a question, store in DB, return stored row.
         """
 
+        logger.info("generation_started", difficulty=difficulty, language=language)
+        t0 = time.perf_counter()
         regen_attempts = 0
         while regen_attempts < 2:
             data = await self._generate_and_validate_schema(difficulty=difficulty, topic_tags=topic_tags, language=language)
@@ -32,6 +39,12 @@ class QuestionGenerator:
             ok = await self._validate_test_cases_with_sandbox(data)
             if ok:
                 stored = self._store_question(data)
+                ai_duration_seconds.labels("question_generation").observe(max(0.0, time.perf_counter() - t0))
+                logger.info(
+                    "generation_completed",
+                    question_id=str(stored.get("id", "")),
+                    duration_ms=round((time.perf_counter() - t0) * 1000, 2),
+                )
                 return stored
 
             regen_attempts += 1
