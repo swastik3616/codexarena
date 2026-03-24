@@ -10,6 +10,7 @@ type Props = {
   roomId: string
   candidateToken?: string
   wsBaseUrl?: string
+  onEditorReady?: (editor: MonacoEditorNS.IStandaloneCodeEditor) => void
 }
 
 type ConnectionStatus = 'connected' | 'reconnecting' | 'offline'
@@ -20,7 +21,7 @@ const statusMeta: Record<ConnectionStatus, { label: string; cls: string }> = {
   offline: { label: 'Offline', cls: 'bg-rose-500' },
 }
 
-export const CodeEditor = ({ roomId, candidateToken, wsBaseUrl = 'ws://127.0.0.1:1234/ws' }: Props) => {
+export const CodeEditor = ({ roomId, candidateToken, wsBaseUrl = 'ws://127.0.0.1:1234/ws', onEditorReady }: Props) => {
   const language = useEditorStore((s) => s.language)
   const code = useEditorStore((s) => s.code)
   const setCode = useEditorStore((s) => s.setCode)
@@ -41,6 +42,7 @@ export const CodeEditor = ({ roomId, candidateToken, wsBaseUrl = 'ws://127.0.0.1
 
   const onMount: OnMount = (editor) => {
     editorRef.current = editor
+    onEditorReady?.(editor)
 
     const model = editor.getModel()
     if (!model) return

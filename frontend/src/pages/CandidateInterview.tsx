@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
+import type { editor as MonacoEditorNS } from 'monaco-editor'
 import { CodeEditor } from '../components/editor/CodeEditor'
 import { LanguageSelector } from '../components/editor/LanguageSelector'
 import { RunButton } from '../components/editor/RunButton'
@@ -7,12 +8,14 @@ import { TestResults } from '../components/editor/TestResults'
 import { useExecution } from '../hooks/useExecution'
 import { getCandidateSession, type InterviewQuestion, setCandidateSession } from '../lib/candidateSession'
 import { QuestionPanel } from '../components/candidate/QuestionPanel'
+import { AntiCheatMonitor } from '../services/antiCheat'
 
 export function CandidateInterview() {
   const { room_id } = useParams<{ room_id: string }>()
   const session = getCandidateSession()
   const [question, setQuestion] = useState<InterviewQuestion | null>(session?.question ?? null)
   const attemptId = session?.attemptId ?? ''
+  const [editorRef, setEditorRef] = useState<MonacoEditorNS.IStandaloneCodeEditor | null>(null)
 
   const { run, loading, result, error, cooldownSeconds } = useExecution({
     candidateToken: session?.candidateToken,
@@ -27,6 +30,10 @@ export function CandidateInterview() {
   useEffect(() => {
     if (!wsUrl || !session?.candidateId) return
     const ws = new WebSocket(wsUrl)
+    const antiCheat = new AntiCheatMonitor()
+    ws.onopen = () => {
+      antiCheat.startAll(ws, session.candidateId, editorRef)
+    }
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data)
@@ -38,8 +45,11 @@ export function CandidateInterview() {
         // ignore malformed
       }
     }
-    return () => ws.close()
-  }, [wsUrl, session])
+    return () => {
+      antiCheat.stopAll()
+      ws.close()
+    }
+  }, [wsUrl, session, editorRef])
 
   if (!room_id || !session || session.roomId !== room_id) {
     return <Navigate to="/" replace />
@@ -64,7 +74,12 @@ export function CandidateInterview() {
             </div>
           </div>
           {error && <div className="rounded border border-rose-700 bg-rose-900/30 px-3 py-2 text-sm text-rose-200">{error}</div>}
-          <CodeEditor roomId={room_id} candidateToken={session.candidateToken} wsBaseUrl="ws://127.0.0.1:1234/ws" />
+          <CodeEditor
+            roomId={room_id}
+            candidateToken={session.candidateToken}
+            wsBaseUrl="ws://127.0.0.1:1234/ws"
+            onEditorReady={setEditorRef}
+          />
           <TestResults result={result} />
         </section>
       </div>
