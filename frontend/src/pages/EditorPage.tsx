@@ -17,8 +17,8 @@ export function EditorPage() {
   })
 
   return (
-    <div className="p-6 min-h-screen bg-slate-950 text-slate-100 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="modern-shell space-y-4">
+      <div className="modern-card p-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Candidate Editor</h1>
         <div className="flex items-center gap-3">
           <LanguageSelector />
@@ -26,7 +26,7 @@ export function EditorPage() {
         </div>
       </div>
 
-      {error && <div className="rounded border border-rose-700 bg-rose-900/30 px-3 py-2 text-sm text-rose-200">{error}</div>}
+      {error && <div className="rounded-xl border border-rose-700 bg-rose-900/30 px-3 py-2 text-sm text-rose-200">{error}</div>}
 
       <CodeEditor roomId={roomId} candidateToken={candidateToken} wsBaseUrl="ws://127.0.0.1:1234/ws" />
 

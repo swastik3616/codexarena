@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import time
 from uuid import uuid4
-
 import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Request
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
-import structlog.contextvars
+try:
+    import structlog.contextvars as structlog_contextvars
+except ModuleNotFoundError:  # pragma: no cover
+    structlog_contextvars = None
 
 from app.api.routes import analytics, auth, attempts, candidates, execute, questions, rooms
 from app.api.routes import websocket as websocket_routes
@@ -84,12 +86,13 @@ async def startup_event() -> None:
 async def request_context_middleware(request: Request, call_next):
     request_id = str(uuid4())
     request.state.request_id = request_id
-    structlog.contextvars.clear_contextvars()
-    structlog.contextvars.bind_contextvars(
-        request_id=request_id,
-        user_id="-",
-        service=settings.SERVICE_MODE or "api",
-    )
+    if structlog_contextvars is not None:
+        structlog_contextvars.clear_contextvars()
+        structlog_contextvars.bind_contextvars(
+            request_id=request_id,
+            user_id="-",
+            service=settings.SERVICE_MODE or "api",
+        )
     start = time.perf_counter()
     try:
         response = await call_next(request)

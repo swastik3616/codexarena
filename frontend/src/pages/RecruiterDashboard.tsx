@@ -75,20 +75,20 @@ export function RecruiterDashboard() {
   }, [selectedRoomId, recruiterToken, upsertCandidate])
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 p-4">
+    <div className="modern-shell">
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
         <aside className="space-y-3">
-          <div className="bg-slate-950 border border-slate-800 rounded-lg p-3">
+          <div className="modern-card p-3">
             <h2 className="text-sm font-semibold mb-2">Rooms</h2>
             <div className="space-y-2">
               {rooms.map((room) => (
                 <button
                   key={room.id}
                   onClick={() => selectRoom(room.id)}
-                  className={`w-full text-left rounded px-2 py-2 text-sm border ${
+                  className={`w-full text-left rounded-xl px-3 py-2 text-sm border transition ${
                     selectedRoomId === room.id
-                      ? 'border-blue-500 bg-blue-500/10'
-                      : 'border-slate-800 bg-slate-900 hover:border-slate-700'
+                      ? 'border-blue-400 bg-blue-500/15'
+                      : 'border-white/10 bg-white/5 hover:border-white/20'
                   }`}
                 >
                   <p className="font-medium">{room.title}</p>
@@ -103,7 +103,7 @@ export function RecruiterDashboard() {
         </aside>
 
         <main className="space-y-4">
-          <section className="bg-slate-950 border border-slate-800 rounded-lg p-3">
+          <section className="modern-card p-4">
             <h2 className="text-sm font-semibold mb-3">Candidates</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {candidates.map((candidate) => (
@@ -121,7 +121,7 @@ export function RecruiterDashboard() {
             </div>
           </section>
 
-          <section className="bg-slate-950 border border-slate-800 rounded-lg p-3">
+          <section className="modern-card p-4">
             {selectedRoomId ? (
               <CandidateLiveView
                 roomId={selectedRoomId}

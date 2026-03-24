@@ -42,21 +42,21 @@ export function JoinRoom() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-lg p-5">
-        <h1 className="text-xl font-semibold">Join Interview</h1>
-        <p className="text-sm text-slate-400 mt-1">Enter your name to begin.</p>
+    <div className="modern-shell flex items-center justify-center">
+      <div className="modern-card w-full max-w-md p-6">
+        <h1 className="modern-title text-xl">Join Interview</h1>
+        <p className="modern-muted text-sm mt-1">Enter your name to begin.</p>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Your name"
-          className="mt-4 w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+          className="mt-4 w-full rounded-xl bg-slate-950/70 border border-white/10 px-3 py-2.5 text-sm"
         />
         {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
         <button
           onClick={join}
           disabled={loading || !name.trim()}
-          className="mt-4 w-full rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-3 py-2 text-sm font-medium"
+          className="modern-btn-primary mt-4 w-full disabled:opacity-50"
         >
           {loading ? 'Joining...' : 'Join Interview'}
         </button>

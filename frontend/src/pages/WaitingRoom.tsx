@@ -34,9 +34,10 @@ export function WaitingRoom() {
   }, [room_id, navigate])
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold">Your interview is starting soon</h1>
+    <div className="modern-shell flex items-center justify-center">
+      <div className="modern-card px-10 py-8 text-center">
+        <h1 className="modern-title text-2xl">Your interview is starting soon</h1>
+        <p className="modern-muted mt-2">Hold on while we prepare your interview room.</p>
         <div className="mt-5 inline-flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
           <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse [animation-delay:150ms]" />

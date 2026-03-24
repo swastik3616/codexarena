@@ -5,7 +5,10 @@ from typing import Any, Dict
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-import structlog.contextvars
+try:
+    import structlog.contextvars as structlog_contextvars
+except ModuleNotFoundError:  # pragma: no cover
+    structlog_contextvars = None
 
 from app.core.security import verify_token
 from app.db.database import get_supabase_client
@@ -46,7 +49,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict[str, Any
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
     # Return recruiter dict (typed shape expected by tests)
-    structlog.contextvars.bind_contextvars(user_id=str(row.get("id")))
+    if structlog_contextvars is not None:
+        structlog_contextvars.bind_contextvars(user_id=str(row.get("id")))
     return {
         "id": str(row.get("id")),
         "email": row.get("email"),
@@ -76,7 +80,8 @@ async def get_current_candidate(token: str = Depends(oauth2_scheme)) -> dict[str
     if not isinstance(email, str):
         email = ""
 
-    structlog.contextvars.bind_contextvars(user_id=str(candidate_id))
+    if structlog_contextvars is not None:
+        structlog_contextvars.bind_contextvars(user_id=str(candidate_id))
     return {"id": candidate_id, "email": email, "role": "candidate"}
 
 

@@ -26,17 +26,17 @@ export function RecruiterLogin() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-lg p-5">
-        <h1 className="text-xl font-semibold">Recruiter Login</h1>
+    <div className="modern-shell flex items-center justify-center">
+      <div className="modern-card w-full max-w-md p-6">
+        <h1 className="modern-title text-xl">Recruiter Login</h1>
         <input
-          className="mt-4 w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+          className="mt-4 w-full rounded-xl bg-slate-950/70 border border-white/10 px-3 py-2.5 text-sm"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
         <input
-          className="mt-2 w-full rounded bg-slate-950 border border-slate-800 px-3 py-2 text-sm"
+          className="mt-2 w-full rounded-xl bg-slate-950/70 border border-white/10 px-3 py-2.5 text-sm"
           placeholder="Password"
           type="password"
           value={password}
@@ -46,7 +46,7 @@ export function RecruiterLogin() {
         <button
           onClick={login}
           disabled={loading || !email || !password}
-          className="mt-4 w-full rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-3 py-2 text-sm font-medium"
+          className="modern-btn-primary mt-4 w-full disabled:opacity-50"
         >
           {loading ? 'Signing in...' : 'Sign In'}
         </button>

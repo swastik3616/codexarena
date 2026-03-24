@@ -67,15 +67,15 @@ export function CandidateInterview() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4">
+    <div className="modern-shell">
       <div className="grid grid-cols-1 xl:grid-cols-[40%_60%] gap-4">
         <QuestionPanel question={question} />
 
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h1 className="text-lg font-semibold">Candidate Interview</h1>
+        <section className="modern-card p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h1 className="text-lg font-semibold tracking-tight">Candidate Interview</h1>
             <div className="flex items-center gap-2">
-            <CameraStatus state={cameraState} message={cameraMessage} />
+              <CameraStatus state={cameraState} message={cameraMessage} />
               <LanguageSelector />
               <RunButton
                 loading={loading}
@@ -85,7 +85,7 @@ export function CandidateInterview() {
               />
             </div>
           </div>
-          {error && <div className="rounded border border-rose-700 bg-rose-900/30 px-3 py-2 text-sm text-rose-200">{error}</div>}
+          {error && <div className="rounded-xl border border-rose-700 bg-rose-900/30 px-3 py-2 text-sm text-rose-200">{error}</div>}
           <CodeEditor
             roomId={room_id}
             candidateToken={session.candidateToken}

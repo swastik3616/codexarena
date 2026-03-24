@@ -32,8 +32,8 @@ export function RoomAnalytics() {
   if (!recruiterToken) return <Navigate to="/login" replace />
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 space-y-4">
-      <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+    <div className="modern-shell space-y-4">
+      <section className="modern-card p-4">
         <h1 className="text-lg font-semibold">{data?.room.title ?? 'Room Analytics'}</h1>
         <p className="text-xs text-slate-400 mt-1">Candidates: {data?.room.candidate_count ?? 0}</p>
         <p className="text-xs text-slate-500 mt-1">

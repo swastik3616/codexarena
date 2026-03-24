@@ -101,8 +101,8 @@ export function EvaluationReport() {
   if (!recruiterToken) return <Navigate to="/login" replace />
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4">
-      <div className="rounded-lg border border-slate-800 bg-slate-900 p-4 mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="modern-shell">
+      <div className="modern-card p-4 mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs text-slate-400">Attempt</p>
           <p className="text-sm font-medium">{attempt_id}</p>
@@ -116,16 +116,16 @@ export function EvaluationReport() {
           <p className="text-2xl font-bold text-blue-300">{total}/100</p>
         </div>
       </div>
-      <div className="mb-3 inline-flex rounded border border-slate-800 bg-slate-900 p-1 text-xs">
+      <div className="mb-3 inline-flex rounded-xl border border-white/10 bg-slate-900/80 p-1 text-xs">
         <button
           onClick={() => setTab('report')}
-          className={`rounded px-3 py-1 ${tab === 'report' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+          className={`rounded-lg px-3 py-1.5 ${tab === 'report' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
         >
           Report
         </button>
         <button
           onClick={() => setTab('replay')}
-          className={`rounded px-3 py-1 ${tab === 'replay' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+          className={`rounded-lg px-3 py-1.5 ${tab === 'replay' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
         >
           Replay
         </button>
