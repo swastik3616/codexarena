@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-import redis
 from pydantic import BaseModel, Field, conint
 
 from app.core.config import settings
+from app.core.redis_client import get_redis_client
 from app.core.logging import get_logger
 from app.core.metrics import ai_duration_seconds, ai_evaluations_total
 from app.db.database import get_supabase_client
@@ -27,10 +27,6 @@ class LlmEvaluationPayload(BaseModel):
     big_o_space: str
     feedback: str
     suggestions: list[str] = Field(default_factory=list, min_length=1, max_length=6)
-
-
-def get_redis_client() -> Any:
-    return redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 class CodeEvaluator:

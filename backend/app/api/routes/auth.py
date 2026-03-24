@@ -4,12 +4,12 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-import redis
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import Request
 
 from app.api.dependencies import get_current_user
 from app.core.config import settings
+from app.core.redis_client import get_redis_client
 from app.core.logging import get_logger
 from app.core.security import create_access_token, create_refresh_token, hash_password, verify_password, verify_token
 from app.db.database import get_supabase_client
@@ -20,11 +20,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 logger = get_logger(service="api")
 
 REFRESH_REVOKE_TTL_SECONDS = 7 * 24 * 60 * 60
-
-
-def get_redis_client() -> Any:
-    # decode_responses=True makes values consistently strings in both prod and tests.
-    return redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 def _get_recruiters_table():

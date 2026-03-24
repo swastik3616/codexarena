@@ -16,7 +16,9 @@ export const RoomControls = ({ recruiterToken, room, apiBase = 'http://127.0.0.1
   const [copied, setCopied] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  const authHeaders = recruiterToken ? { Authorization: `Bearer ${recruiterToken}` } : undefined
+  const authHeaders = recruiterToken
+    ? { Authorization: `Bearer ${recruiterToken}`, 'Content-Type': 'application/json' }
+    : undefined
 
   const createRoom = async () => {
     if (!title.trim() || !recruiterToken) return
@@ -51,7 +53,11 @@ export const RoomControls = ({ recruiterToken, room, apiBase = 'http://127.0.0.1
 
   const closeRoom = async () => {
     if (!room || !recruiterToken) return
-    await axios.delete(`${apiBase}/rooms/${room.id}`, { headers: authHeaders })
+    await axios.delete(`${apiBase}/rooms/${room.id}`, {
+      headers: recruiterToken
+        ? { Authorization: `Bearer ${recruiterToken}`, 'Content-Type': 'application/json' }
+        : undefined,
+    })
     upsertRoom({ ...room, status: 'completed' })
   }
 

@@ -26,7 +26,6 @@ if CryptContext is not None:
     except Exception:  # pragma: no cover
         pwd_context = None
 
-ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
 REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
 
@@ -82,11 +81,13 @@ def create_access_token(data: dict) -> str:
     """
     Create an access token:
     - HS256
-    - expires in exactly 15 minutes
+    - expiry from settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
     - payload includes: sub, email, jti, exp
     """
 
-    payload = _build_token_payload(data, expires_in=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    payload = _build_token_payload(
+        data, expires_in=timedelta(minutes=max(1, int(settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)))
+    )
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm="HS256")
 
 

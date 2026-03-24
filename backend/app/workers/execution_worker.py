@@ -7,11 +7,10 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, Callable, Coroutine, Optional
 
-import redis
-
 from arq.worker import RedisSettings
 
 from app.core.config import settings
+from app.core.redis_client import get_redis_client
 from app.core.logging import get_logger
 from app.core.metrics import execution_duration_seconds, execution_jobs_total
 from app.db.database import get_supabase_client
@@ -19,10 +18,6 @@ logger = get_logger(service="execution_worker")
 
 from app.services.ai.code_evaluator import CodeEvaluator
 from app.services.execution import runner
-
-
-def get_redis_client() -> Any:
-    return redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 async def execute_submission(ctx: Any, job_payload: dict[str, Any]) -> None:

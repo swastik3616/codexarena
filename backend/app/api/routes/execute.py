@@ -5,11 +5,11 @@ import uuid
 from types import SimpleNamespace
 from typing import Any
 
-import redis
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_current_candidate, get_current_candidate_or_recruiter
 from app.core.config import settings
+from app.core.redis_client import get_redis_client
 from app.core.logging import get_logger
 from app.core.metrics import execution_jobs_total
 from app.db.database import get_supabase_client
@@ -23,10 +23,6 @@ from app.workers.execution_worker import execute_submission
 
 router = APIRouter(prefix="/execute", tags=["execute"])
 logger = get_logger(service="api")
-
-
-def get_redis_client() -> Any:
-    return redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 @router.post("", response_model=ExecuteQueuedResponse)

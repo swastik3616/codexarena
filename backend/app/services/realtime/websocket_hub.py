@@ -11,6 +11,7 @@ from typing import Any, DefaultDict, Dict
 from fastapi import WebSocket, WebSocketDisconnect
 
 from app.core.config import settings
+from app.core.redis_client import get_redis_client
 from app.core.logging import get_logger
 from app.core.metrics import cheat_events_total, websocket_connections_active
 logger = get_logger(service="websocket")
@@ -24,14 +25,6 @@ active_connections: dict[str, dict[str, dict[str, WebSocket]]] = {}
 _room_pubsub_tasks: dict[str, asyncio.Task[None]] = {}
 _room_pubsub_locks: dict[str, asyncio.Lock] = {}
 _room_snapshot_tasks: dict[str, asyncio.Task[None]] = {}
-
-
-def get_redis_client() -> Any:
-    # Imported lazily to keep module import cheap.
-    import redis
-    from app.core.config import settings
-
-    return redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 def _get_redis_channels(room_id: str) -> tuple[str, str, str]:

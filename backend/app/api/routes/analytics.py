@@ -4,18 +4,14 @@ import json
 from pathlib import Path
 from typing import Any
 
-import redis
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_current_user
 from app.core.config import settings
+from app.core.redis_client import get_redis_client
 from app.db.database import get_supabase_client
 
 router = APIRouter(tags=["analytics"])
-
-
-def get_redis_client() -> Any:
-    return redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 def _to_epoch_seconds(value: Any) -> int | None:
