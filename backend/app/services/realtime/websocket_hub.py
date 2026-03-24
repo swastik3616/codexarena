@@ -5,10 +5,12 @@ import base64
 import json
 import time
 import uuid
+from pathlib import Path
 from typing import Any, DefaultDict, Dict
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from app.core.config import settings
 from app.core.security import verify_token
 from app.db.database import get_supabase_client
 
@@ -17,6 +19,7 @@ active_connections: dict[str, dict[str, dict[str, WebSocket]]] = {}
 # room_id -> background task that fans out Redis pub/sub updates to recruiters.
 _room_pubsub_tasks: dict[str, asyncio.Task[None]] = {}
 _room_pubsub_locks: dict[str, asyncio.Lock] = {}
+_room_snapshot_tasks: dict[str, asyncio.Task[None]] = {}
 
 
 def get_redis_client() -> Any:
@@ -137,6 +140,9 @@ async def _ensure_room_pubsub(room_id: str) -> None:
 
         _room_pubsub_tasks[room_id] = asyncio.create_task(fanout())
 
+    if room_id not in _room_snapshot_tasks:
+        _room_snapshot_tasks[room_id] = asyncio.create_task(_snapshot_room_loop(room_id))
+
 
 async def _maybe_cancel_room_pubsub(room_id: str) -> None:
     """
@@ -148,6 +154,9 @@ async def _maybe_cancel_room_pubsub(room_id: str) -> None:
         task = _room_pubsub_tasks.pop(room_id, None)
         if task:
             task.cancel()
+        snap_task = _room_snapshot_tasks.pop(room_id, None)
+        if snap_task:
+            snap_task.cancel()
         return
 
     candidates = room.get("candidates", {})
@@ -156,7 +165,102 @@ async def _maybe_cancel_room_pubsub(room_id: str) -> None:
         task = _room_pubsub_tasks.pop(room_id, None)
         if task:
             task.cancel()
+        snap_task = _room_snapshot_tasks.pop(room_id, None)
+        if snap_task:
+            snap_task.cancel()
         active_connections.pop(room_id, None)
+
+
+def _best_effort_code_text(room_id: str) -> str:
+    redis_client = get_redis_client()
+    updates = redis_client.lrange(f"room:{room_id}:ydoc", -1, -1) or []
+    if not updates:
+        return ""
+    upd = updates[0]
+    if isinstance(upd, bytes):
+        try:
+            return upd.decode("utf-8", errors="ignore")
+        except Exception:
+            return base64.b64encode(upd).decode("utf-8")
+    return str(upd)
+
+
+async def _snapshot_room_loop(room_id: str) -> None:
+    try:
+        while True:
+            await asyncio.sleep(30)
+            room = active_connections.get(room_id) or {}
+            if not room.get("candidates"):
+                continue
+            ts = int(time.time())
+            code_text = _best_effort_code_text(room_id)
+            payload = json.dumps({"timestamp": ts, "code": code_text})
+            get_redis_client().zadd(f"room:{room_id}:snapshots", {payload: ts})
+    except asyncio.CancelledError:
+        return
+
+
+async def archive_room_snapshots(room_id: str, attempt_id: str | None = None) -> str | None:
+    redis_client = get_redis_client()
+    raw = redis_client.zrange(f"room:{room_id}:snapshots", 0, -1, withscores=True) or []
+    snapshots = []
+    for item, score in raw:
+        try:
+            parsed = json.loads(item)
+            snapshots.append(
+                {
+                    "timestamp": int(parsed.get("timestamp", int(score))),
+                    "code": parsed.get("code", ""),
+                    "elapsed_seconds": 0,
+                }
+            )
+        except Exception:
+            snapshots.append({"timestamp": int(score), "code": str(item), "elapsed_seconds": 0})
+    if not snapshots:
+        return None
+    base = snapshots[0]["timestamp"]
+    for snap in snapshots:
+        snap["elapsed_seconds"] = int(snap["timestamp"]) - int(base)
+
+    key = f"snapshots/{room_id}/{attempt_id or 'latest'}.json"
+    body = json.dumps({"snapshots": snapshots}, ensure_ascii=True)
+
+    # Best-effort MinIO/S3 upload, with local file fallback.
+    uploaded = False
+    try:
+        import boto3  # type: ignore
+
+        client = boto3.client(
+            "s3",
+            endpoint_url=settings.MINIO_ENDPOINT,
+            aws_access_key_id=settings.MINIO_ACCESS_KEY,
+            aws_secret_access_key=settings.MINIO_SECRET_KEY,
+        )
+        bucket = "codexarena-archives"
+        try:
+            client.head_bucket(Bucket=bucket)
+        except Exception:
+            client.create_bucket(Bucket=bucket)
+        client.put_object(Bucket=bucket, Key=key, Body=body.encode("utf-8"), ContentType="application/json")
+        uploaded = True
+    except Exception:
+        uploaded = False
+
+    if not uploaded:
+        archive_dir = Path(__file__).resolve().parents[3] / "archives"
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        file_path = archive_dir / f"{room_id}_{attempt_id or 'latest'}.json"
+        file_path.write_text(body, encoding="utf-8")
+        key = str(file_path)
+
+    if attempt_id:
+        client = get_supabase_client()
+        if client is not None:
+            try:
+                client.table("attempts").update({"s3_archive_key": key}).eq("id", str(attempt_id)).execute()
+            except Exception:
+                pass
+    return key
 
 
 async def _handle_code_delta(room_id: str, candidate_id: str, ws: WebSocket, data: dict[str, Any]) -> None:

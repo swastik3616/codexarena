@@ -4,6 +4,7 @@ import { Navigate, useParams } from 'react-router-dom'
 import { AIFeedback } from '../components/dashboard/AIFeedback'
 import { BigODisplay } from '../components/dashboard/BigODisplay'
 import { CheatEventTimeline } from '../components/dashboard/CheatEventTimeline'
+import { ReplayTimeline } from '../components/dashboard/ReplayTimeline'
 import { ScoreBreakdown } from '../components/dashboard/ScoreBreakdown'
 import { TestResultsSummary } from '../components/dashboard/TestResultsSummary'
 
@@ -34,6 +35,11 @@ type ReportData = {
   cheat_events: Array<{ id: string; severity: 'low' | 'medium' | 'high'; event_type: string; occurred_at?: string; payload?: Record<string, unknown> }>
 }
 
+type SnapshotData = {
+  snapshots: Array<{ timestamp: number; code: string; elapsed_seconds: number }>
+  cheat_events: Array<{ id: string; severity: 'low' | 'medium' | 'high'; event_type: string; occurred_at?: string; payload?: Record<string, unknown> }>
+}
+
 const fallbackData: ReportData = {
   attempt: { id: 'demo-attempt', language: 'python' },
   evaluation: {
@@ -56,6 +62,8 @@ export function EvaluationReport() {
   const { attempt_id } = useParams<{ attempt_id: string }>()
   const recruiterToken = localStorage.getItem('recruiterToken')
   const [data, setData] = useState<ReportData>(fallbackData)
+  const [replay, setReplay] = useState<SnapshotData>({ snapshots: [], cheat_events: [] })
+  const [tab, setTab] = useState<'report' | 'replay'>('report')
 
   useEffect(() => {
     const load = async () => {
@@ -68,6 +76,14 @@ export function EvaluationReport() {
         setData(res.data as ReportData)
       } catch {
         // Keep fallback render for now.
+      }
+      try {
+        const snapRes = await axios.get(`${API_BASE}/attempts/${attempt_id}/snapshots`, {
+          headers: { Authorization: `Bearer ${recruiterToken}` },
+        })
+        setReplay(snapRes.data as SnapshotData)
+      } catch {
+        setReplay({ snapshots: [], cheat_events: data.cheat_events })
       }
     }
     void load()
@@ -100,38 +116,58 @@ export function EvaluationReport() {
           <p className="text-2xl font-bold text-blue-300">{total}/100</p>
         </div>
       </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="space-y-4">
-          <ScoreBreakdown
-            correctness={data.evaluation.correctness_score}
-            efficiency={data.evaluation.efficiency_score}
-            readability={data.evaluation.readability_score}
-            edgeCases={data.evaluation.edge_case_score}
-          />
-          <BigODisplay timeComplexity={data.evaluation.big_o_time} spaceComplexity={data.evaluation.big_o_space} />
-        </div>
-
-        <div className="space-y-4">
-          <AIFeedback
-            feedback={data.evaluation.feedback}
-            suggestions={data.evaluation.suggestions}
-            evaluatedAt={data.evaluation.evaluated_at}
-            promptVersion={data.evaluation.prompt_version}
-          />
-          <TestResultsSummary
-            passCount={data.execution.test_pass_count}
-            total={data.execution.test_total}
-            executionMs={data.execution.wall_time_ms}
-            memoryKb={data.execution.memory_kb}
-            rows={data.execution.rows}
-          />
-        </div>
-
-        <div className="space-y-4">
-          <CheatEventTimeline events={data.cheat_events} />
-        </div>
+      <div className="mb-3 inline-flex rounded border border-slate-800 bg-slate-900 p-1 text-xs">
+        <button
+          onClick={() => setTab('report')}
+          className={`rounded px-3 py-1 ${tab === 'report' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+        >
+          Report
+        </button>
+        <button
+          onClick={() => setTab('replay')}
+          className={`rounded px-3 py-1 ${tab === 'replay' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}
+        >
+          Replay
+        </button>
       </div>
+
+      {tab === 'report' ? (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div className="space-y-4">
+            <ScoreBreakdown
+              correctness={data.evaluation.correctness_score}
+              efficiency={data.evaluation.efficiency_score}
+              readability={data.evaluation.readability_score}
+              edgeCases={data.evaluation.edge_case_score}
+            />
+            <BigODisplay timeComplexity={data.evaluation.big_o_time} spaceComplexity={data.evaluation.big_o_space} />
+          </div>
+
+          <div className="space-y-4">
+            <AIFeedback
+              feedback={data.evaluation.feedback}
+              suggestions={data.evaluation.suggestions}
+              evaluatedAt={data.evaluation.evaluated_at}
+              promptVersion={data.evaluation.prompt_version}
+            />
+            <TestResultsSummary
+              passCount={data.execution.test_pass_count}
+              total={data.execution.test_total}
+              executionMs={data.execution.wall_time_ms}
+              memoryKb={data.execution.memory_kb}
+              rows={data.execution.rows}
+            />
+          </div>
+
+          <div className="space-y-4">
+            <CheatEventTimeline events={data.cheat_events} />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <ReplayTimeline snapshots={replay.snapshots} cheatEvents={replay.cheat_events} />
+        </div>
+      )}
     </div>
   )
 }

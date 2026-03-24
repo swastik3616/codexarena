@@ -14,6 +14,7 @@ from app.api.dependencies import get_current_candidate_or_recruiter, get_current
 from app.core.config import settings
 from app.db.database import get_supabase_client
 from app.schemas.room import RoomCreateRequest, RoomCreateResponse, RoomDetailResponse, RoomListResponse
+from app.services.realtime.websocket_hub import archive_room_snapshots
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
@@ -151,7 +152,7 @@ def get_room_detail(
 
 
 @router.delete("/{room_id}")
-def archive_room(
+async def archive_room(
     room_id: str,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, str]:
@@ -168,4 +169,17 @@ def archive_room(
 
     now = datetime.now(timezone.utc)
     rooms.update({"status": "completed", "ended_at": now}).eq("id", room_id).execute()
+    try:
+        client = get_supabase_client()
+        attempt_id: str | None = None
+        if client is not None:
+            candidates = client.table("candidates").select("*").eq("room_id", room_id).execute().data or []
+            if candidates:
+                candidate_id = str(candidates[-1].get("id"))
+                attempts = client.table("attempts").select("*").eq("candidate_id", candidate_id).execute().data or []
+                if attempts:
+                    attempt_id = str(attempts[-1].get("id"))
+        await archive_room_snapshots(room_id, attempt_id)
+    except Exception:
+        pass
     return {"message": "Room completed"}
