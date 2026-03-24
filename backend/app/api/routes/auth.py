@@ -34,8 +34,30 @@ def _get_recruiters_table():
     return client.table("recruiters")
 
 
+def _rate_limit(redis_client: Any, key: str, *, limit: int, ttl_seconds: int) -> None:
+    # Some test doubles may not implement increment/ttl methods.
+    if not hasattr(redis_client, "incr"):
+        return
+    try:
+        count = redis_client.incr(key)
+        if count == 1 and hasattr(redis_client, "expire"):
+            redis_client.expire(key, ttl_seconds)
+        if count > limit:
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
+    except HTTPException:
+        raise
+    except Exception:
+        # Fail-open for non-production/test environments where Redis may be absent.
+        return
+
+
 @router.post("/register")
-def register(payload: RegisterRequest) -> dict[str, Any]:
+def register(payload: RegisterRequest, request: Request) -> dict[str, Any]:
+    redis_client = get_redis_client()
+    ip = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")).split(",")[0].strip()
+    rl_key = f"rl:register:{ip}"
+    _rate_limit(redis_client, rl_key, limit=5, ttl_seconds=3600)
+
     recruiters = _get_recruiters_table()
 
     # Hash password and insert recruiter
@@ -63,7 +85,7 @@ def register(payload: RegisterRequest) -> dict[str, Any]:
 
     access_token = create_access_token({"sub": recruiter_id, "email": payload.email, "jti": jti_access})
     refresh_token = create_refresh_token({"sub": recruiter_id, "email": payload.email, "jti": jti_refresh})
-    logger.info("login_success", user_id=recruiter_id, ip=request.client.host if request.client else "unknown")
+    logger.info("register_success", user_id=recruiter_id, ip=request.client.host if request.client else "unknown")
 
     return {
         "access_token": access_token,
@@ -75,6 +97,11 @@ def register(payload: RegisterRequest) -> dict[str, Any]:
 
 @router.post("/login")
 def login(payload: LoginRequest, request: Request) -> dict[str, Any]:
+    redis_client = get_redis_client()
+    ip = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")).split(",")[0].strip()
+    rl_key = f"rl:login:{ip}"
+    _rate_limit(redis_client, rl_key, limit=10, ttl_seconds=900)
+
     recruiters = _get_recruiters_table()
 
     res = recruiters.select("*").eq("email", payload.email).single().execute()
@@ -96,6 +123,7 @@ def login(payload: LoginRequest, request: Request) -> dict[str, Any]:
 
     access_token = create_access_token({"sub": recruiter_id, "email": payload.email, "jti": jti_access})
     refresh_token = create_refresh_token({"sub": recruiter_id, "email": payload.email, "jti": jti_refresh})
+    logger.info("login_success", user_id=recruiter_id, ip=request.client.host if request.client else "unknown")
 
     return {
         "access_token": access_token,

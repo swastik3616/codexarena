@@ -33,8 +33,9 @@ class Settings(BaseSettings):
     SENTRY_DSN: str | None = Field(default=None)
 
     # CORS
+    FRONTEND_URL: str = Field(default="http://localhost:5173")
     CORS_ALLOW_ORIGINS: str = Field(
-        default="*",
+        default="http://localhost:5173",
         description="Comma-separated list of allowed origins. Use '*' for all origins.",
     )
 

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
+import redis
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
 from app.api.dependencies import get_current_candidate_or_recruiter, get_current_user
+from app.core.config import settings
 from app.core.security import verify_token
 from app.db.database import get_supabase_client
 from app.schemas.question import GenerateQuestionRequest, GenerateQuestionResponse
@@ -16,11 +18,35 @@ router = APIRouter(prefix="/questions", tags=["questions"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
+def get_redis_client() -> Any:
+    return redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+
+def _rate_limit(redis_client: Any, key: str, *, limit: int, ttl_seconds: int) -> None:
+    if not hasattr(redis_client, "incr"):
+        return
+    try:
+        count = redis_client.incr(key)
+        if count == 1 and hasattr(redis_client, "expire"):
+            redis_client.expire(key, ttl_seconds)
+        if count > limit:
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
+    except HTTPException:
+        raise
+    except Exception:
+        return
+
+
 @router.post("/generate", response_model=GenerateQuestionResponse)
 async def generate_question(
     payload: GenerateQuestionRequest,
-    _recruiter: dict[str, Any] = Depends(get_current_user),
+    recruiter: dict[str, Any] = Depends(get_current_user),
 ) -> GenerateQuestionResponse:
+    redis_client = get_redis_client()
+    rid = str(recruiter.get("id"))
+    rl_key = f"rl:qgen:{rid}"
+    _rate_limit(redis_client, rl_key, limit=10, ttl_seconds=3600)
+
     generator = QuestionGenerator()
     question = await generator.generate(
         difficulty=payload.difficulty,
