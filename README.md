@@ -1,121 +1,112 @@
-# CodexArena Monorepo (Backend + Frontend)
+# CodexArena Monorepo
 
-CodexArena is a live coding interview prototype with real-time monitoring:
+CodexArena is a real-time technical interview platform with:
 
-- The **backend** is a FastAPI app that manages “rooms” in memory and broadcasts candidate updates via WebSockets.
-- The **frontend** is a React + Vite app with routes for recruiters (monitor rooms) and candidates (join an editor session). Candidates push editor changes over WebSockets and recruiters see them live.
+- Recruiter room management and live candidate monitoring
+- Candidate coding interview flow with Monaco + Yjs collaboration
+- Secure multi-language code execution pipeline
+- AI question generation and AI code evaluation
+- Browser-side anti-cheat signals + replay timeline support
 
 ---
 
 ## Project Structure
 
-- `backend/`: FastAPI app (JWT/auth stubs, routers, `/health`)
-- `frontend/`: React + Vite UI
-- `infra/`: Docker Compose for local dependencies (redis, supabase-local, minio)
-- (older prototype folders removed)
+- `backend/` - FastAPI services, workers, schemas, execution engine, WebSocket hub
+- `frontend/` - React + TypeScript + Vite UI
+- `infra/` - infrastructure scaffolding (docker/k8s-related assets)
 
 ---
 
-## Backend (FastAPI)
+## Implemented So Far
 
-### What it exposes
+### Backend
 
-- `GET /`
-  - Returns `{ "message": "CodexArena Backend Running" }`
+- Auth + JWT:
+  - `POST /auth/register`
+  - `POST /auth/login`
+  - `POST /auth/refresh`
+- Room + candidate flow:
+  - `POST /rooms`
+  - `GET /rooms`
+  - `GET /rooms/{room_id}`
+  - `DELETE /rooms/{room_id}`
+  - `POST /rooms/{room_id}/join`
+  - `GET /rooms/resolve/{join_token}`
+- Questioning:
+  - `POST /questions/generate`
+  - `GET /questions/{question_id}`
+- Execution:
+  - `POST /execute`
+  - `GET /execute/{job_id}`
+- Real-time:
+  - `WS /ws/{room_id}` with JWT auth and room access checks
+  - events include `code.delta`, `cursor.update`, `cheat.event`, `execution.result`, `ai.evaluation`
+- AI services:
+  - AI question generator (`Gemini` + schema validation + sandbox validation)
+  - AI code evaluator with rubric scoring
+- Security/execution:
+  - Docker container pool with timeouts and isolation-oriented flags
+  - 5-language runners (`python`, `javascript`, `java`, `cpp`, `go`)
+- Replay groundwork:
+  - 30s snapshot capture in Redis
+  - snapshot archive on room close (MinIO/S3 best-effort with local fallback)
+  - `GET /attempts/{attempt_id}/snapshots`
 
-- `WebSocket /ws/room/{room_id}?candidate_name=...`
-  - When a candidate connects, the server:
-    - Accepts the connection
-    - Generates a `candidate_id`
-    - Broadcasts `candidate_joined` to everyone connected in that room
-  - Then it continuously receives JSON messages from that candidate and rebroadcasts them to the whole room.
-  - On disconnect, it broadcasts `candidate_left`.
+### Frontend
 
-### In-memory behavior
+- App routing:
+  - `/` landing
+  - `/login` recruiter login
+  - `/dashboard` recruiter dashboard (protected)
+  - `/join/:token` candidate join page
+  - `/waiting/:room_id` waiting room
+  - `/interview/:room_id` candidate interview
+  - `/report/:attempt_id` evaluation report (protected)
+- Candidate experience:
+  - question panel (markdown, examples, hints, timer)
+  - Monaco editor + Yjs sync
+  - run + test results
+  - anti-cheat client monitors:
+    - large paste
+    - tab switch
+    - copy detection
+    - keystroke anomaly
+    - idle timeout
+    - face absence / multi-face (MediaPipe FaceMesh)
+- Recruiter experience:
+  - room list + room controls
+  - candidate cards + live view
+  - cheat alert panel
+  - evaluation report:
+    - score doughnut
+    - Big-O display
+    - AI feedback/suggestions
+    - test summary
+    - replay tab with timeline scrubber + diff
 
-Room state is stored in-memory only (no database). If the backend restarts, all rooms/candidates are reset.
+---
 
-### WebSocket message contract (current behavior)
+## Local Run
 
-Candidate -> Backend (messages sent by the candidate editor):
+### 1) Backend
 
-```json
-{
-  "type": "code_update",
-  "code": "<editor contents>",
-  "timestamp": "2026-03-23T12:34:56.789Z"
-}
-```
-
-Possible other message types sent by the frontend today:
-
-```json
-{ "type": "run_code", "status": "running", "timestamp": "..." }
-```
-```json
-{ "type": "submit", "code": "<current code>", "timestamp": "..." }
-```
-
-Backend -> Everyone in the room (rebroadcasted wrapper):
-
-```json
-{
-  "type": "<same as incoming type>",
-  "candidate_id": "<server generated id>",
-  "payload": {
-    "...original message fields..."
-  }
-}
-```
-
-Server-generated join/leave broadcasts:
-
-```json
-{ "type": "candidate_joined", "candidate_id": "<id>", "candidate_name": "<name>" }
-```
-```json
-{ "type": "candidate_left", "candidate_id": "<id>", "candidate_name": "<name>" }
-```
-
-### How to run (backend)
+Use Python 3.12 (important for dependency alignment):
 
 ```powershell
 cd D:\codexarena\backend
-
-# Install deps + start server (verification)
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+py -3.12 -m pip install -r requirements.txt
+py -3.12 -m uvicorn app.main:app --reload
 ```
 
-Backend is expected to be reachable by the frontend at `ws://localhost:8000/...`.
+Backend default URL: `http://127.0.0.1:8000`
 
----
+Quick checks:
 
-## Frontend (React + Vite)
+- `GET /health`
+- `GET /`
 
-### What it provides
-
-Routes (configured in `src/App.tsx`):
-
-- `/` -> `DashboardPage` (overview placeholder UI)
-- `/rooms` -> `RoomsPage` (room list + “create room” UI)
-- `/rooms/:roomId` -> `RoomDetailPage` (recruiter live monitoring UI)
-- `/join/:roomId` -> `JoinPage` (candidate invitation page)
-- `/editor` -> `EditorPage` (candidate editor + WebSocket connection)
-
-### Real-time flow (candidate <-> recruiter)
-
-1. Recruiter opens: `/rooms/:roomId`
-2. Candidate opens: `/join/:roomId`
-3. `JoinPage` currently **redirects** to `/editor?room=<roomId>&candidate=<name>`
-4. `EditorPage` connects to:
-   `ws://localhost:8000/ws/room/<roomId>?candidate_name=<candidateName>`
-5. As the candidate types, `EditorPage` sends `code_update` messages (with `{ code, timestamp }`)
-6. `RoomDetailPage` listens for:
-   - `candidate_joined` / `candidate_left`
-   - `code_update` and displays `data.payload.code` per `candidate_id`
-
-### How to run (frontend)
+### 2) Frontend
 
 ```powershell
 cd D:\codexarena\frontend
@@ -123,20 +114,13 @@ npm install
 npm run dev
 ```
 
-Then open the URL Vite prints (default is typically `http://localhost:5173/`).
-
-### Notes / current limitations
-
-- The “proctored environment / monitoring” copy in `JoinPage` is currently UI-only (no camera/tab-switch logic in this code).
-- Backend currently rebroadcasts any incoming message type, but the recruiter UI only uses `code_update` to update displayed code.
-- `RoomDetailPage` shares an invite link with a **hardcoded** frontend port (`http://localhost:5174/join/{roomId}`). If your Vite dev server is on a different port, update that string in the frontend code.
+Frontend default URL: `http://localhost:5173`
 
 ---
 
-## Running the full app locally
+## Current Notes
 
-1. Start the backend (port `8000`) using the instructions in the backend section.
-2. Start the frontend (Vite dev server).
-3. Recruiter: open `/rooms/:roomId`
-4. Candidate: open `/join/:roomId` (or use the invite link shown on the room page)
+- Some endpoints/pages still use fallback rendering if optional backend report APIs are unavailable.
+- Snapshot archive writes to MinIO/S3 when configured; otherwise it falls back to local JSON archive files.
+- This repository has substantial Phase 1/2 and partial Phase 3 implementation; full production hardening (Phase 4 items) is still pending.
 
