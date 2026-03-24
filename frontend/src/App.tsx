@@ -6,6 +6,7 @@ import { RecruiterDashboard } from './pages/RecruiterDashboard'
 import { JoinRoom } from './pages/JoinRoom'
 import { WaitingRoom } from './pages/WaitingRoom'
 import { CandidateInterview } from './pages/CandidateInterview'
+import { EvaluationReport } from './pages/EvaluationReport'
 
 function ProtectedRecruiterRoute({ children }: { children: ReactElement }) {
   const token = localStorage.getItem('recruiterToken')
@@ -23,6 +24,14 @@ export default function App() {
         element={
           <ProtectedRecruiterRoute>
             <RecruiterDashboard />
+          </ProtectedRecruiterRoute>
+        }
+      />
+      <Route
+        path="/report/:attempt_id"
+        element={
+          <ProtectedRecruiterRoute>
+            <EvaluationReport />
           </ProtectedRecruiterRoute>
         }
       />

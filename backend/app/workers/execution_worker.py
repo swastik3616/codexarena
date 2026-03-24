@@ -12,6 +12,7 @@ from arq.worker import RedisSettings
 
 from app.core.config import settings
 from app.db.database import get_supabase_client
+from app.services.ai.code_evaluator import CodeEvaluator
 from app.services.execution import runner
 
 
@@ -86,6 +87,33 @@ async def execute_submission(ctx: Any, job_payload: dict[str, Any]) -> None:
             redis_client.set(f"exec_job:{job_id}:status", "complete")
         except Exception:
             pass
+
+    # Chain AI evaluation after execution result is available.
+    try:
+        client = get_supabase_client()
+        if client is not None:
+            attempt = client.table("attempts").select("*").eq("id", attempt_id).single().execute().data or {}
+            question_id = attempt.get("question_id")
+            question = (
+                client.table("questions").select("*").eq("id", question_id).single().execute().data
+                if question_id
+                else {}
+            )
+            execution_result = {
+                "pass_count": int(result.get("pass_count", 0)),
+                "total": int(result.get("total", len(test_cases))),
+                "timed_out": bool(result.get("timed_out", False)),
+            }
+            await CodeEvaluator().evaluate(
+                attempt_id=attempt_id,
+                code=code,
+                language=language,
+                execution_result=execution_result,
+                question=question or {},
+            )
+    except Exception:
+        # Execution completion should not fail due to evaluator issues.
+        pass
 
 
 class WorkerSettings:
