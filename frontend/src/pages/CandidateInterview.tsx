@@ -89,7 +89,7 @@ export function CandidateInterview() {
           <CodeEditor
             roomId={room_id}
             candidateToken={session.candidateToken}
-            wsBaseUrl="ws://127.0.0.1:1234/ws"
+            wsBaseUrl="ws://127.0.0.1:8000/ws"
             onEditorReady={setEditorRef}
           />
           <TestResults result={result} />

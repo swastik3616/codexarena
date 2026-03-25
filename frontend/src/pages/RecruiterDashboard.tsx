@@ -49,7 +49,7 @@ export function RecruiterDashboard() {
         title: String(r.title),
         difficulty: r.difficulty,
         status: String(r.status),
-        joinLink: r.join_link,
+        joinLink: r.join_link ?? undefined,
       }))
       setRooms(loaded)
       if (!selectedRoomId && loaded.length) selectRoom(loaded[0].id)

@@ -11,6 +11,7 @@ type Props = {
 
 export const RoomControls = ({ recruiterToken, room, apiBase = 'http://127.0.0.1:8000' }: Props) => {
   const upsertRoom = useRoomStore((s) => s.upsertRoom)
+  const selectRoom = useRoomStore((s) => s.selectRoom)
   const [title, setTitle] = useState('')
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
   const [copied, setCopied] = useState(false)
@@ -38,6 +39,7 @@ export const RoomControls = ({ recruiterToken, room, apiBase = 'http://127.0.0.1
         status: res.data.status,
         joinLink: res.data.join_link,
       })
+      selectRoom(res.data.room_id)
       setTitle('')
     } finally {
       setSubmitting(false)
@@ -96,6 +98,17 @@ export const RoomControls = ({ recruiterToken, room, apiBase = 'http://127.0.0.1
             <span className="text-slate-400">Status</span>
             <span className="rounded px-2 py-0.5 bg-slate-800 text-slate-200">{room.status}</span>
           </div>
+          {room.joinLink && (
+            <div className="space-y-1">
+              <p className="text-xs text-slate-400">Join Link</p>
+              <input
+                readOnly
+                value={room.joinLink}
+                className="w-full rounded bg-slate-900 border border-slate-700 px-2 py-1.5 text-xs text-slate-200 select-all cursor-text"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+            </div>
+          )}
           <button
             onClick={copyJoinLink}
             disabled={!room.joinLink}

@@ -188,6 +188,7 @@ async def join_room(
         "description": (question_row or {}).get("description"),
         "examples": (question_row or {}).get("examples", []),
         "hints": (question_row or {}).get("hints", []),
+        "constraints": (question_row or {}).get("constraints", []),
         "topic_tags": (question_row or {}).get("topic_tags", []),
         "difficulty": (question_row or {}).get("difficulty", room2.get("difficulty")),
     }

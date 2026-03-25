@@ -33,6 +33,7 @@ class RoomListItem(BaseModel):
     title: str
     difficulty: Literal["easy", "medium", "hard"] = "medium"
     status: str
+    join_link: Optional[str] = None
 
 
 class RoomListResponse(BaseModel):

@@ -18,8 +18,6 @@ from app.services.realtime.websocket_hub import archive_room_snapshots
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
-JOIN_LINK_BASE = "https://app.codexarena.io/join"
-
 
 def _get_rooms_table() -> Any:
     client = get_supabase_client()
@@ -50,7 +48,8 @@ def create_room(
     msg = (room_id + timestamp).encode("utf-8")
     join_token = hmac.new(secret, msg, hashlib.sha256).hexdigest()
 
-    join_link = f"{JOIN_LINK_BASE}/{join_token}"
+    join_link_base = f"{settings.FRONTEND_URL}/join"
+    join_link = f"{join_link_base}/{join_token}"
 
     # Store join token mapping for 24 hours
     redis_client = get_redis_client()
@@ -89,12 +88,14 @@ def list_rooms(
     limit = 20
     sliced = all_rows[offset : offset + limit]
 
+    join_link_base = f"{settings.FRONTEND_URL}/join"
     items = [
         {
             "room_id": str(r.get("id")),
             "title": r.get("title"),
             "difficulty": r.get("difficulty"),
             "status": r.get("status"),
+            "join_link": f"{join_link_base}/{r.get('join_token')}" if r.get("join_token") else None,
         }
         for r in sliced
     ]

@@ -4,7 +4,7 @@ import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import { MonacoBinding } from 'y-monaco'
 import type { editor as MonacoEditorNS } from 'monaco-editor'
-import { useEditorStore, type EditorLanguage } from '../../store/editorStore'
+import { useEditorStore, type EditorLanguage, DEFAULT_SNIPPETS } from '../../store/editorStore'
 
 type Props = {
   roomId: string
@@ -21,7 +21,7 @@ const statusMeta: Record<ConnectionStatus, { label: string; cls: string }> = {
   offline: { label: 'Offline', cls: 'bg-rose-500' },
 }
 
-export const CodeEditor = ({ roomId, candidateToken, wsBaseUrl = 'ws://127.0.0.1:1234/ws', onEditorReady }: Props) => {
+export const CodeEditor = ({ roomId, candidateToken, wsBaseUrl = 'ws://127.0.0.1:8000/ws', onEditorReady }: Props) => {
   const language = useEditorStore((s) => s.language)
   const code = useEditorStore((s) => s.code)
   const setCode = useEditorStore((s) => s.setCode)
@@ -31,8 +31,31 @@ export const CodeEditor = ({ roomId, candidateToken, wsBaseUrl = 'ws://127.0.0.1
   const providerRef = useRef<WebsocketProvider | null>(null)
   const bindingRef = useRef<MonacoBinding | null>(null)
   const reconnectTimerRef = useRef<number | null>(null)
+  const prevLanguageRef = useRef<EditorLanguage>(language)
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('reconnecting')
+
+  // When language changes, update the Monaco model to show the new language's code
+  useEffect(() => {
+    if (prevLanguageRef.current === language) return
+    prevLanguageRef.current = language
+    const editor = editorRef.current
+    const ydoc = ydocRef.current
+    if (!editor) return
+    const newCode = DEFAULT_SNIPPETS[language]
+    // Update Yjs shared text so the change syncs if connected
+    if (ydoc) {
+      const ytext = ydoc.getText('monaco')
+      ydoc.transact(() => {
+        ytext.delete(0, ytext.length)
+        ytext.insert(0, newCode)
+      })
+    } else {
+      // Fallback: set Monaco model directly
+      editor.setValue(newCode)
+    }
+    setCode(newCode)
+  }, [language, setCode])
 
   const params = useMemo(() => {
     const p: Record<string, string> = {}

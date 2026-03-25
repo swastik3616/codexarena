@@ -410,7 +410,20 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str) -> None:
 
     try:
         while True:
-            raw = await websocket.receive_text()
+            message = await websocket.receive()
+
+            # Client disconnected cleanly
+            if message["type"] == "websocket.disconnect":
+                break
+
+            # Binary frame (Yjs protocol from y-websocket) — skip, handled by yjs layer
+            if message.get("bytes") is not None:
+                continue
+
+            raw = message.get("text")
+            if not raw:
+                continue
+
             try:
                 msg = json.loads(raw)
             except Exception:
